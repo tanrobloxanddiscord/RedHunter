@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>REDHUNTER - Ultimate Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        .shake-anim { animation: shake 0.15s ease-in-out 0s 2; }
+        .overlay-red { background-color: rgba(220, 38, 38, 0.4); pointer-events: none; }
+        
+        #game-board {
+            aspect-ratio: 1 / 1;
+            width: 90vw;
+            max-width: 400px;
+            max-height: 40vh;
+            margin: 0 auto;
+        }
+
+        .btn-action { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-action:active { transform: scale(0.95); }
+
+        #toast {
+            transform: translateX(-50%) translateY(100px);
+            transition: transform 0.3s ease-out;
+            pointer-events: none;
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+
+        .infinity-active #mode-title { color: #fbbf24; }
+        
+        .brand-text { font-family: 'Arial Black', sans-serif; font-style: italic; letter-spacing: -0.05em; }
+        .brand-red { color: #FF0000; }
+        .brand-white { color: #FFFFFF; }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px rgba(220, 38, 38, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.5); }
+            100% { box-shadow: 0 0 5px rgba(220, 38, 38, 0.2); }
+        }
+        .pulse { animation: pulse-glow 2s infinite; }
+
+        #color-reference {
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center font-sans overflow-hidden select-none">
+
+    <div id="toast" class="fixed bottom-10 left-1/2 bg-white text-black px-6 py-2 rounded-full font-bold z-[500] shadow-xl text-sm">
+        Đã sao chép!
+    </div>
+
+    <!-- Mẫu màu mục tiêu -->
+    <div id="target-ref-container" class="fixed bottom-4 left-4 z-[150] hidden flex flex-col items-center gap-1">
+        <div id="color-reference" class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-[#FF0000]"></div>
+        <span class="text-[8px] font-black text-red-500 tracking-widest uppercase">Mục tiêu</span>
+    </div>
+
+    <!-- Bước 1: Press to Play -->
+    <div id="start-screen" class="fixed inset-0 bg-slate-950 z-[110] flex flex-col items-center justify-center p-6 text-center">
+        <div class="mb-16">
+            <h1 class="text-7xl md:text-9xl brand-text font-black leading-none">
+                <span class="brand-red">RED</span><span class="brand-white">HUNTER</span>
+            </h1>
+            <p class="text-slate-500 mt-4 tracking-[0.4em] font-bold uppercase text-[10px]">Thử thách thị giác tối thượng</p>
+        </div>
+        <button id="btn-press-to-play" class="btn-action pulse px-12 py-5 bg-red-600 rounded-full font-black text-xl hover:bg-red-500 tracking-widest shadow-2xl">
+            PRESS TO PLAY
+        </button>
+    </div>
+
+    <!-- Bước 2: Chọn Mode -->
+    <div id="mode-selection" class="fixed inset-0 bg-slate-950 z-[100] flex flex-col items-center justify-center p-6 text-center hidden">
+        <h2 class="text-slate-400 font-bold uppercase text-xs tracking-[0.3em] mb-8">Chọn chế độ chơi</h2>
+        <div class="flex flex-col gap-4 w-full max-w-[300px]">
+            <button id="btn-play-normal" class="btn-action px-6 py-4 bg-white text-black rounded-2xl font-black text-lg hover:bg-slate-200">
+                NORMAL TO HARDCORE
+            </button>
+            <button id="btn-play-hardcore" class="btn-action px-6 py-4 bg-red-700/20 border border-red-600 rounded-2xl font-black text-lg text-red-500 hover:bg-red-700/30">
+                HARDCORE ONLY
+            </button>
+            <button id="btn-play-infinity" class="btn-action px-6 py-4 bg-yellow-600 rounded-2xl font-black text-lg hover:bg-yellow-500 shadow-lg shadow-yellow-900/20">
+                INFINITY CHAOS
+            </button>
+        </div>
+        <div class="mt-10 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+            Kỷ lục vô tận: <span id="start-high-score" class="text-yellow-600">0</span>
+        </div>
+    </div>
+
+    <!-- Chỉ số Infinity -->
+    <div id="infinity-stats" class="fixed top-4 right-4 flex gap-2 hidden z-[200]">
+        <div class="bg-black/60 backdrop-blur-md border border-yellow-600/30 px-3 py-1 rounded-lg flex items-center gap-2">
+            <span class="text-yellow-500 text-sm">🏆</span>
+            <span id="inf-high-score" class="text-yellow-500 font-black text-xs">0</span>
+        </div>
+        <div class="bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1 rounded-lg flex items-center gap-2">
+            <span class="text-white text-sm">🎯</span>
+            <span id="inf-current-score" class="text-white font-black text-xs">0</span>
+        </div>
+    </div>
+
+    <!-- Game Chính -->
+    <div id="main-game" class="hidden w-full flex flex-col items-center px-4">
+        <div id="game-header" class="mb-4 text-center w-full max-w-[400px]">
+            <div class="flex justify-between items-end mb-1">
+                <h2 id="mode-title" class="text-xl brand-text font-black"><span class="brand-red">RED</span>HUNTER</h2>
+                <span id="level-indicator" class="text-slate-500 font-bold text-[9px] tracking-widest uppercase">Cấp độ <span id="current-level" class="text-white font-black">1</span>/10</span>
+            </div>
+            <div id="progress-container" class="h-1 bg-slate-800 w-full rounded-full overflow-hidden">
+                <div id="progress-bar" class="h-full bg-red-600 transition-all duration-300" style="width: 10%"></div>
+            </div>
+            <div class="flex justify-center mt-3" id="score-box">
+                <div class="bg-slate-900/50 border border-slate-800 px-6 py-1 rounded-xl">
+                    <p class="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">ĐIỂM SỐ</p>
+                    <p id="score" class="text-xl font-black text-red-500">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="game-board" class="relative bg-slate-900 p-2 rounded-2xl shadow-2xl border-4 border-slate-800/50 flex items-center justify-center">
+            <div id="grid" class="grid gap-1.5 w-full h-full"></div>
+            <div id="wrong-overlay" class="absolute inset-0 flex items-center justify-center opacity-0 pointer-events-none bg-red-900/40 rounded-[18px]">
+                <span class="text-8xl font-black text-white">X</span>
+            </div>
+        </div>
+
+        <button id="btn-leave" class="hidden btn-action mt-6 px-10 py-3 bg-slate-800/50 text-slate-400 hover:text-white rounded-full font-black text-[10px] tracking-widest uppercase border border-white/5">
+            TẠM DỪNG
+        </button>
+    </div>
+
+    <!-- Kết quả -->
+    <div id="result-screen" class="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-[300] hidden p-6">
+        <h2 id="result-mode-text" class="text-2xl font-black text-red-600 italic uppercase mb-2 tracking-tighter">Hoàn thành</h2>
+        <div id="final-score" class="text-8xl font-black mb-10 text-white drop-shadow-2xl">0/50</div>
+        <div class="flex flex-col gap-3 w-full max-w-[280px]">
+            <button id="btn-res-infinity" class="btn-action py-4 bg-yellow-600 text-white font-black rounded-xl shadow-lg shadow-yellow-900/20 uppercase">♾️ Chế độ vô tận</button>
+            <button id="btn-restart" class="btn-action py-4 bg-white text-black font-black rounded-xl uppercase text-xs">Menu chính</button>
+        </div>
+    </div>
+
+    <!-- Leave/Tạm dừng -->
+    <div id="leave-screen" class="fixed inset-0 bg-slate-950/98 backdrop-blur-xl flex flex-col items-center justify-center z-[400] hidden p-6">
+        <h2 class="text-yellow-500 font-black text-2xl italic mb-8 uppercase tracking-widest">Trạng thái Vô tận</h2>
+        <div class="grid grid-cols-2 gap-4 w-full max-w-[320px] mb-12">
+            <div class="bg-slate-900 p-4 rounded-2xl border border-white/5 text-center">
+                <p class="text-[10px] text-slate-500 font-bold uppercase mb-1">Hiện tại</p>
+                <p id="leave-curr" class="text-4xl font-black text-white">0</p>
+            </div>
+            <div class="bg-slate-900 p-4 rounded-2xl border border-yellow-600/20 text-center">
+                <p class="text-[10px] text-yellow-600/50 font-bold uppercase mb-1">Kỷ lục</p>
+                <p id="leave-high" class="text-4xl font-black text-yellow-500">0</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 gap-3 w-full max-w-[240px]">
+            <button id="btn-resume" class="btn-action py-4 bg-red-600 rounded-xl font-black text-sm uppercase text-white shadow-xl">TIẾP TỤC CHƠI</button>
+            <button id="btn-back-restart" class="btn-action py-4 bg-slate-800 rounded-xl font-black text-[10px] uppercase text-slate-400">Rời trận đấu</button>
+        </div>
+    </div>
+
+    <!-- Hardcore Modal -->
+    <div id="hardcore-modal" class="fixed inset-0 bg-black/95 flex items-center justify-center z-[150] hidden p-6 backdrop-blur-md">
+        <div class="bg-slate-900 p-8 rounded-[32px] border-2 border-red-600 max-w-sm w-full text-center">
+            <h2 class="text-2xl font-black text-red-600 mb-2 italic uppercase">Hardcore?</h2>
+            <p class="text-slate-400 text-xs mt-2 px-4 mb-6">Bạn có muốn tiếp tục với độ khó Hardcore không?</p>
+            <div class="flex flex-col gap-2">
+                <button id="btn-hardcore-yes" class="btn-action py-4 bg-red-600 rounded-xl font-black">CHẤP NHẬN</button>
+                <button id="btn-hardcore-no" class="btn-action py-3 text-slate-500 font-bold">XEM KẾT QUẢ</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PURE_RED = "#FF0000";
+        let score = 0;
+        let currentLevel = 1;
+        let isHardcore = false;
+        let isInfinity = false;
+        let isProcessing = false;
+        let infScore = 0;
+        let highScore = parseInt(localStorage.getItem('redhunter_inf_high')) || 0;
+
+        document.getElementById('start-high-score').innerText = highScore;
+
+        const layouts = {
+            1: { r: 2, c: 2 }, 2: { r: 2, c: 3 }, 3: { r: 2, c: 5 }, 4: { r: 3, c: 6 }, 5: { r: 5, c: 6 },
+            6: { r: 6, c: 6 }, 7: { r: 6, c: 8 }, 8: { r: 7, c: 8 }, 9: { r: 8, c: 8 }, 10: { r: 8, c: 10 }
+        };
+
+        const els = {
+            startScreen: document.getElementById('start-screen'),
+            modeSelection: document.getElementById('mode-selection'),
+            mainGame: document.getElementById('main-game'),
+            grid: document.getElementById('grid'),
+            level: document.getElementById('current-level'),
+            score: document.getElementById('score'),
+            progressBar: document.getElementById('progress-bar'),
+            wrongOverlay: document.getElementById('wrong-overlay'),
+            hardcoreModal: document.getElementById('hardcore-modal'),
+            resultScreen: document.getElementById('result-screen'),
+            finalScore: document.getElementById('final-score'),
+            infStats: document.getElementById('infinity-stats'),
+            leaveScreen: document.getElementById('leave-screen'),
+            btnLeave: document.getElementById('btn-leave'),
+            infCurr: document.getElementById('inf-current-score'),
+            infHigh: document.getElementById('inf-high-score'),
+            modeTitle: document.getElementById('mode-title'),
+            targetRef: document.getElementById('target-ref-container')
+        };
+
+        function playSound(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(type === 'correct' ? 800 : 120, ctx.currentTime);
+                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                osc.start(); osc.stop(ctx.currentTime + 0.1);
+            } catch(e) {}
+        }
+
+        function generateInfinityColor() {
+            // Ngẫu nhiên hoàn toàn hơn 16 triệu màu
+            if (Math.random() < 0.25) {
+                // Nhiễu tông đỏ khó nhằn
+                const r = 220 + Math.floor(Math.random() * 35);
+                const g = Math.floor(Math.random() * 70);
+                const b = Math.floor(Math.random() * 70);
+                return `rgb(${r}, ${g}, ${b})`;
+            } else {
+                const r = Math.floor(Math.random() * 256);
+                const g = Math.floor(Math.random() * 256);
+                const b = Math.floor(Math.random() * 256);
+                // Ngăn chặn việc trùng với (255,0,0)
+                if (r > 250 && g < 10 && b < 10) return `rgb(${r-25}, ${g+25}, ${b+25})`;
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+        }
+
+        function generateNormalColor(layoutKey) {
+            if (isHardcore) {
+                const diffs = [85, 65, 45, 35, 28, 20, 14, 10, 6, 4];
+                const d = diffs[layoutKey - 1] || 5;
+                return `rgb(${255 - d}, 0, 0)`;
+            } else {
+                let r, g, b;
+                do { r = Math.floor(Math.random() * 180); g = Math.floor(Math.random() * 210); b = Math.floor(Math.random() * 210); }
+                while (r > 160 && g < 70 && b < 70);
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+        }
+
+        function initLevel() {
+            isProcessing = false;
+            let layoutKey = isInfinity ? Math.floor(Math.random() * 10) + 1 : currentLevel;
+            const layout = layouts[layoutKey];
+            
+            els.grid.style.gridTemplateRows = `repeat(${layout.r}, 1fr)`;
+            els.grid.style.gridTemplateColumns = `repeat(${layout.c}, 1fr)`;
+            els.grid.innerHTML = '';
+            
+            const total = layout.r * layout.c;
+            const winIdx = Math.floor(Math.random() * total);
+
+            for (let i = 0; i < total; i++) {
+                const cell = document.createElement('div');
+                cell.className = "w-full h-full rounded-lg cursor-pointer border border-white/5 active:scale-90 transition-all shadow-md";
+                
+                if (i === winIdx) {
+                    cell.style.backgroundColor = PURE_RED;
+                } else {
+                    cell.style.backgroundColor = isInfinity ? generateInfinityColor() : generateNormalColor(layoutKey);
+                }
+                
+                cell.onclick = () => handleChoice(i === winIdx);
+                els.grid.appendChild(cell);
+            }
+            
+            els.level.innerText = isInfinity ? "∞" : currentLevel;
+            els.score.innerText = score;
+            
+            if (!isInfinity) {
+                els.progressBar.style.width = `${(currentLevel / 10) * 100}%`;
+                els.progressBar.style.backgroundColor = isHardcore ? "#ef4444" : "#dc2626";
+            } else {
+                els.progressBar.style.width = "100%";
+                els.progressBar.style.backgroundColor = "#fbbf24";
+            }
+        }
+
+        function handleChoice(isCorrect) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            if (isCorrect) {
+                if (isInfinity) {
+                    infScore++;
+                    els.infCurr.innerText = infScore;
+                    if (infScore > highScore) {
+                        highScore = infScore;
+                        localStorage.setItem('redhunter_inf_high', highScore);
+                        els.infHigh.innerText = highScore;
+                        document.getElementById('start-high-score').innerText = highScore;
+                    }
+                } else { score += 10; }
+                playSound('correct');
+                setTimeout(nextStep, 350);
+            } else {
+                if (!isInfinity) score -= 5;
+                playSound('wrong');
+                document.body.classList.add('overlay-red');
+                document.getElementById('game-board').classList.add('shake-anim');
+                els.wrongOverlay.style.opacity = "1";
+                setTimeout(() => {
+                    document.body.classList.remove('overlay-red');
+                    document.getElementById('game-board').classList.remove('shake-anim');
+                    els.wrongOverlay.style.opacity = "0";
+                    nextStep();
+                }, 400);
+            }
+        }
+
+        function nextStep() {
+            if (isInfinity) { initLevel(); return; }
+            if (currentLevel === 5 && !isHardcore) { els.hardcoreModal.classList.remove('hidden'); }
+            else if (currentLevel === 10) { showResult(); }
+            else { currentLevel++; initLevel(); }
+        }
+
+        function showResult() {
+            els.resultScreen.classList.remove('hidden');
+            els.targetRef.classList.add('hidden');
+            els.finalScore.innerText = `${score}/${isHardcore ? 100 : 50}`;
+        }
+
+        // ĐIỀU HƯỚNG GAME
+        document.getElementById('btn-press-to-play').onclick = () => {
+            els.startScreen.classList.add('hidden');
+            els.modeSelection.classList.remove('hidden');
+        };
+
+        function resetAllUI() {
+            els.startScreen.classList.add('hidden');
+            els.modeSelection.classList.add('hidden');
+            els.resultScreen.classList.add('hidden');
+            els.leaveScreen.classList.add('hidden');
+            els.hardcoreModal.classList.add('hidden');
+            
+            els.mainGame.classList.remove('hidden');
+            els.targetRef.classList.remove('hidden');
+            
+            // Reset state game chính
+            document.getElementById('score-box').classList.remove('hidden');
+            document.getElementById('level-indicator').classList.remove('hidden');
+            els.infStats.classList.add('hidden');
+            els.btnLeave.classList.add('hidden');
+            els.modeTitle.innerHTML = '<span class="brand-red">RED</span>HUNTER';
+        }
+
+        function startNormal() {
+            isInfinity = false; isHardcore = false; currentLevel = 1; score = 0;
+            resetAllUI();
+            initLevel();
+        }
+
+        function startHardcore() {
+            isInfinity = false; isHardcore = true; currentLevel = 6; score = 0;
+            resetAllUI();
+            initLevel();
+        }
+
+        function startInfinity() {
+            isInfinity = true; infScore = 0; score = 0;
+            resetAllUI();
+            
+            els.infCurr.innerText = "0";
+            els.infHigh.innerText = highScore;
+            els.infStats.classList.remove('hidden');
+            els.btnLeave.classList.remove('hidden');
+            
+            document.getElementById('score-box').classList.add('hidden');
+            document.getElementById('level-indicator').classList.add('hidden');
+            els.modeTitle.innerHTML = '<span class="text-yellow-500">INF</span>HUNTER';
+            initLevel();
+        }
+
+        // Sự kiện các nút Mode
+        document.getElementById('btn-play-normal').onclick = startNormal;
+        document.getElementById('btn-play-hardcore').onclick = startHardcore;
+        document.getElementById('btn-play-infinity').onclick = startInfinity;
+
+        // FIX: Nút Infinity tại màn hình kết quả đi thẳng vào game
+        document.getElementById('btn-res-infinity').onclick = startInfinity;
+
+        els.btnLeave.onclick = () => {
+            document.getElementById('leave-curr').innerText = infScore;
+            document.getElementById('leave-high').innerText = highScore;
+            els.leaveScreen.classList.remove('hidden');
+            els.targetRef.classList.add('hidden');
+        };
+
+        document.getElementById('btn-resume').onclick = () => {
+            els.leaveScreen.classList.add('hidden');
+            els.targetRef.classList.remove('hidden');
+        };
+
+        document.getElementById('btn-back-restart').onclick = () => location.reload();
+        document.getElementById('btn-restart').onclick = () => location.reload();
+
+        document.getElementById('btn-hardcore-yes').onclick = () => {
+            isHardcore = true; currentLevel = 6;
+            els.hardcoreModal.classList.add('hidden');
+            initLevel();
+        };
+        document.getElementById('btn-hardcore-no').onclick = showResult;
+
+    </script>
+</body>
+</html>
